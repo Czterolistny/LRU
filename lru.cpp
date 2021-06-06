@@ -1,40 +1,29 @@
 #include <iostream>
 #include <list>
 #include <unordered_map>
-#include <array>
 #include <cstdbool>
 #include "lru.hpp"
 
-#define region_size (sizeof(regions) / sizeof(regions[0]))
+MemoryRegion regions[region_size];
 
-struct MemoryRegion
+LRU::LRU()
 {
-	int *val_ptr;
-};
-
-MemoryRegion regions[5];
-
-std::list<int> mem(region_size, -1);
-std::unordered_map<int, std::list<int>::iterator> lru_cache;
-
-LRU::LRU(){
-	init();
-}
-
-void LRU::init()
-{	
-	auto it = mem.begin();
 	for(int i = 0; i < region_size; ++i)
 	{
-		regions[i].val_ptr = &*it;
+		mem.push_front(-1);
+		regions[i].val_ptr = &*mem.begin();
+		iter_list.push_front({-1, mem.begin()});
 	}
 }
-	
+
 void LRU::updateCache(int val)
 {
-	auto it = lru_cache[val];
-	lru_cache.erase(val);
-	lru_cache.insert({val ,it});
+	auto map_it = umap.find(val);
+	auto it = map_it->second->second;
+		
+	iter_list.erase(map_it->second);
+	iter_list.push_front({val, it});
+	umap[val] = iter_list.begin();
 }
 	
 inline bool LRU::isFull()
@@ -44,46 +33,48 @@ inline bool LRU::isFull()
 	
 void LRU::evict_recent_and_add(int val)
 {
-	auto it = lru_cache.begin(); 
-	it = std::next(it, region_size - 1);
-	
-	auto tmp_it = it->second;
-	*it->second = val;
-	lru_cache.erase(it);
-	lru_cache[val] = tmp_it;
+	auto it = (--iter_list.end())->second;
+	int _val = (--iter_list.end())->first;
+
+	iter_list.pop_back();
+	umap.erase(umap.find(_val)); 
+
+	*it = val;
+	iter_list.push_front({val, it});
+	umap.insert({val, iter_list.begin()});
 }
 	
 void LRU::put(int val)
 {	
 
-	auto iter = lru_cache.find(val);
-	if(iter != lru_cache.end()){
+	auto map_it = umap.find(val);
+	if(map_it != umap.end()){
 		updateCache(val);
 	}else{
 		if(!isFull()){
 			mem.push_front(val);
 			regions[size].val_ptr = &mem.front();
-			lru_cache[val] = mem.begin();
-			mem.erase(--mem.end());
+			iter_list.push_front({val, mem.begin()});
+			umap.insert({val, iter_list.begin()});
+			mem.pop_back();
+			iter_list.pop_back();
+			size++;
 		}else{
 			evict_recent_and_add(val);
 		}
 	}
-	if(!isFull())
-		size++;
 }
 
-class LRU lru;
 
 MemoryRegion *find(int val)
 {	
-	lru.put(val);	
+	//lru.put(val);	
 	return &regions[0];
 }
 
-int main()
+/*int main()
 {
 	std::cout<<"Hello"<<std::endl;
 
 return 0;
-}
+}*/
